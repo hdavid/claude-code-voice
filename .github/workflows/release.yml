@@ -1,0 +1,83 @@
+name: Release
+
+# A tag v* builds the app, signs it with the Developer ID in the repository secrets, notarizes it and attaches
+# the zip to a GitHub Release. Secrets (set them with `gh secret set NAME`):
+#   MACOS_CERTIFICATE_P12   base64 of the .p12 holding "Developer ID Application" + its private key
+#   MACOS_CERTIFICATE_PWD   the .p12 password
+#   KEYCHAIN_PASSWORD       any password for the throwaway keychain the job creates
+#   DEVELOPER_ID_APP        "Developer ID Application: Name (TEAMID)"
+#   NOTARY_APPLE_ID         Apple ID used for notarization
+#   NOTARY_TEAM_ID          TEAMID
+#   NOTARY_PASSWORD         an app-specific password for that Apple ID
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools
+        run: |
+          brew install xcodegen
+          xcodebuild -version
+
+      # The certificate goes into a throwaway keychain, password-authorized so codesign needs no dialog,
+      # prepended to the search list so xcodebuild finds the identity; removed again at the end.
+      - name: Import signing certificate
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [ -n "$MACOS_CERTIFICATE_P12" ] || { echo "MACOS_CERTIFICATE_P12 secret is not set" >&2; exit 1; }
+          CERT="$RUNNER_TEMP/cert.p12"
+          KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
+          echo "$MACOS_CERTIFICATE_P12" | base64 --decode > "$CERT"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT" -P "$MACOS_CERTIFICATE_PWD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          KEYCHAINS=()
+          while IFS= read -r k; do KEYCHAINS+=("$k"); done < <(
+            security list-keychains -d user | sed -e 's/^[[:space:]]*"//' -e 's/"$//')
+          security list-keychains -d user -s "$KEYCHAIN" ${KEYCHAINS[@]+"${KEYCHAINS[@]}"}
+          echo "SIGNING_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+          rm -f "$CERT"
+
+      - name: Build, sign, notarize, package
+        env:
+          DEVELOPER_ID_APP: ${{ secrets.DEVELOPER_ID_APP }}
+          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+          NOTARY_PASSWORD: ${{ secrets.NOTARY_PASSWORD }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          [ -n "$DEVELOPER_ID_APP" ] || { echo "DEVELOPER_ID_APP secret is not set" >&2; exit 1; }
+          [ -n "$NOTARY_PASSWORD" ] || { echo "NOTARY_* secrets are not set" >&2; exit 1; }
+          scripts/package.sh
+
+      - name: Attach to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "$TAG" --generate-notes
+          fi
+          gh release upload "$TAG" dist/*.zip dist/*.sha256 --clobber
+
+      - name: Remove the signing keychain
+        if: always()
+        run: |
+          [ -n "${SIGNING_KEYCHAIN:-}" ] && security delete-keychain "$SIGNING_KEYCHAIN" || true
