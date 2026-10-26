@@ -1,0 +1,71 @@
+# XcodeGen spec (brew install xcodegen). `./build.sh` regenerates the project, builds and installs the app.
+# Signing comes from Signing.xcconfig: ad-hoc by default, your own identity in a git-ignored Local.xcconfig,
+# and the release workflow passes its identity on the xcodebuild command line.
+name: ClaudeVoice
+options:
+  bundleIdPrefix: io.github.hdavid
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+configFiles:
+  Debug: Signing.xcconfig
+  Release: Signing.xcconfig
+settings:
+  base:
+    CODE_SIGN_STYLE: Manual
+    PROVISIONING_PROFILE_SPECIFIER: ""
+    CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO   # no get-task-allow in a shipped signature
+    ENABLE_HARDENED_RUNTIME: YES
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  ClaudeVoice:
+    type: application
+    platform: macOS
+    sources: [App, Shared]
+    dependencies:
+      - target: ClaudeVoiceControl
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Claude Voice
+        LSUIElement: true   # menu bar only: no Dock icon, no app menu
+        NSHumanReadableCopyright: ""
+    settings:
+      base:
+        PRODUCT_NAME: Claude Voice
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.hdavid.claude-code-voice
+        CODE_SIGN_IDENTITY: "$(inherited)"   # from Signing.xcconfig, not XcodeGen's macOS preset
+        DEVELOPMENT_TEAM: "$(inherited)"
+  ClaudeVoiceControl:
+    type: app-extension
+    platform: macOS
+    sources: [Control, Shared]
+    info:
+      path: Control/Info.plist
+      properties:
+        CFBundleDisplayName: Claude Voice
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    # PlugInKit refuses an unsandboxed appex ("plug-ins must be sandboxed", pkd log 2026-10-26), so the control is
+    # sandboxed with one exception: ~/.claude, where the mute file lives. Temporary-exception entitlements are honoured
+    # outside the App Store, which is the only place this app lives.
+    entitlements:
+      path: Control/ClaudeVoiceControl.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.temporary-exception.files.home-relative-path.read-write:
+          - /.claude/
+    settings:
+      base:
+        PRODUCT_NAME: ClaudeVoiceControl
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.hdavid.claude-code-voice.control
+        CODE_SIGN_IDENTITY: "$(inherited)"
+        DEVELOPMENT_TEAM: "$(inherited)"
+        SKIP_INSTALL: YES
+schemes:
+  ClaudeVoice:
+    build:
+      targets:
+        ClaudeVoice: all

@@ -1,0 +1,13 @@
+// Signing for local builds.
+//
+// Default: "sign to run locally" (ad-hoc). The menu bar switch works like that. The Control Center control does not:
+// the widget daemon registers an ad-hoc signed control and then drops it (measured 2026-10-26), so for the control
+// put a real identity in Local.xcconfig, which is git-ignored and never committed:
+//
+//     CODE_SIGN_IDENTITY = Apple Development: Your Name (TEAMID)      // or Developer ID Application: ...
+//     DEVELOPMENT_TEAM = TEAMID
+//
+// No provisioning profile is needed either way. The release workflow passes its identity on the command line.
+CODE_SIGN_IDENTITY = -
+DEVELOPMENT_TEAM =
+#include? "Local.xcconfig"
