@@ -17,7 +17,9 @@ SIGN_ARGS=()
 if [ -n "${DEVELOPER_ID_APP:-}" ]; then
   TEAM=$(sed -n 's/.*(\([A-Z0-9]*\))$/\1/p' <<<"$DEVELOPER_ID_APP")
   [ -n "$TEAM" ] || { echo "DEVELOPER_ID_APP must end in (TEAMID): $DEVELOPER_ID_APP" >&2; exit 1; }
-  SIGN_ARGS=("CODE_SIGN_IDENTITY=$DEVELOPER_ID_APP" "DEVELOPMENT_TEAM=$TEAM")
+  # --timestamp: notarization rejects a signature without a secure timestamp, and a plain `xcodebuild build`
+  # does not add one by itself (first release attempt, 2026-10-26).
+  SIGN_ARGS=("CODE_SIGN_IDENTITY=$DEVELOPER_ID_APP" "DEVELOPMENT_TEAM=$TEAM" "OTHER_CODE_SIGN_FLAGS=--timestamp")
 fi
 
 rm -rf build/Build/Products/Release dist
@@ -31,9 +33,20 @@ lipo -archs "$APP/Contents/MacOS/Claude Voice"
 
 if [ -n "${NOTARY_APPLE_ID:-}" ] && [ -n "${NOTARY_TEAM_ID:-}" ] && [ -n "${NOTARY_PASSWORD:-}" ]; then
   ditto -c -k --keepParent "$APP" dist/notarize.zip
+  # `--wait` exits 0 on a rejected submission too, so read the status; on anything but Accepted, print
+  # Apple's log (which names the file and the check that failed) and stop before stapling.
   xcrun notarytool submit dist/notarize.zip --apple-id "$NOTARY_APPLE_ID" --team-id "$NOTARY_TEAM_ID" \
-    --password "$NOTARY_PASSWORD" --wait
+    --password "$NOTARY_PASSWORD" --wait --output-format json > dist/notary.json
   rm -f dist/notarize.zip
+  STATUS=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("status",""))' dist/notary.json)
+  SUBMISSION=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("id",""))' dist/notary.json)
+  if [ "$STATUS" != "Accepted" ]; then
+    echo "notarization $STATUS (submission $SUBMISSION):" >&2
+    xcrun notarytool log "$SUBMISSION" --apple-id "$NOTARY_APPLE_ID" --team-id "$NOTARY_TEAM_ID" \
+      --password "$NOTARY_PASSWORD" >&2 || true
+    exit 1
+  fi
+  rm -f dist/notary.json
   xcrun stapler staple "$APP"
   spctl --assess --type execute --verbose=2 "$APP"
 else

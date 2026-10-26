@@ -6,6 +6,7 @@
 //
 //     CODE_SIGN_IDENTITY = Apple Development: Your Name (TEAMID)      // or Developer ID Application: ...
 //     DEVELOPMENT_TEAM = TEAMID
+//     OTHER_CODE_SIGN_FLAGS = --timestamp                              // Developer ID: notarization needs it
 //
 // No provisioning profile is needed either way. The release workflow passes its identity on the command line.
 CODE_SIGN_IDENTITY = -
