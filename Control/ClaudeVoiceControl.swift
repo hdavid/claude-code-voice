@@ -17,7 +17,7 @@ struct ClaudeVoiceControl: ControlWidget {
             ControlWidgetToggle(isOn: voiceOn, action: SetClaudeVoiceIntent()) {
                 Text("Claude voice")
             } valueLabel: { on in
-                Label(on ? "On" : "Muted", systemImage: on ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                Label(on ? "On" : "Muted", image: on ? "VoiceOn" : "VoiceMuted")
             }
             .tint(.orange)
         }

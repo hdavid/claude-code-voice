@@ -23,11 +23,11 @@ Requires macOS 26 (Tahoe) or later. Not affiliated with Anthropic; Claude is a t
    and word what it speaks.
 2. **The app.** Download `Claude-Voice-<version>.zip` from the
    [latest release](https://github.com/hdavid/claude-code-voice/releases/latest) (signed and notarized), unzip,
-   move `Claude Voice.app` to `~/Applications` or `/Applications`, open it. A speaker appears in the menu bar.
+   move `Claude Voice.app` to `~/Applications` or `/Applications`, open it. The Claude mark with sound waves appears in the menu bar.
 
 ## Use
 
-- **Menu bar**: click the icon to mute or unmute. While muted the speaker is crossed and the icon is dimmed.
+- **Menu bar**: click the icon to mute or unmute. While muted the mark is struck through and the icon is dimmed.
   Right-click (or control-click) for the state, "Open at login" and Quit. Unmuting plays a short pop, so you hear
   that the voice is back.
 - **Control Center**: open Control Center, "Edit Controls…" at the bottom, add "Claude voice". The toggle is ON
@@ -39,8 +39,8 @@ Requires macOS 26 (Tahoe) or later. Not affiliated with Anthropic; Claude is a t
   assigned in the Shortcuts app.
 - **From a terminal or a Claude session**: `touch ~/.claude/voice-muted` mutes, `rm ~/.claude/voice-muted` unmutes.
 
-The icon is Claude.app's own menu bar mark with a speaker beside it when Claude.app is installed (the mark is read
-from that app at run time, never shipped here); otherwise an asterisk.
+The icon is the Claude mark with the speaker's sound waves, rendered by `scripts/make-icons.py` into
+`Shared/Assets.xcassets` and used by both the menu bar and the Control Center toggle.
 
 ## Build from source
 
