@@ -5,7 +5,7 @@ import os
 
 /// Menu bar switch for Claude's spoken alerts.
 ///
-/// Click the speaker: toggles the mute. Right-click (or control-click): a menu with the state,
+/// Click the icon: toggles the mute. Right-click (or control-click): a menu with the state,
 /// "Open at login" and Quit. The icon follows the file, so a "mute" typed to Claude shows up here too.
 @main
 final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
@@ -132,39 +132,10 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
         ControlCenter.shared.reloadControls(ofKind: MuteState.controlKind)
     }
 
-    /// Claude.app's own menu bar mark, read from that app when it is installed. The mark is Anthropic's, so it is
-    /// never bundled or shipped here; without Claude.app the icon falls back to an asterisk.
-    private static let claudeMark: NSImage? = {
-        let homes = ["/Applications", NSHomeDirectory() + "/Applications"]
-        for home in homes {
-            let path = home + "/Claude.app/Contents/Resources/TrayIconTemplate@2x.png"
-            if let image = NSImage(contentsOfFile: path) {
-                image.isTemplate = true
-                return image
-            }
-        }
-        let configuration = NSImage.SymbolConfiguration(pointSize: 13, weight: .bold)
-        return NSImage(systemSymbolName: "asterisk", accessibilityDescription: nil)?.withSymbolConfiguration(configuration)
-    }()
-
-    /// The mark with a speaker beside it, as one template image: the system tints both for light, dark and the
-    /// dimmed muted state, and the speaker carries the state.
+    /// The Claude mark with the speaker's sound waves (muted: struck through), a template image from the asset
+    /// catalog shared with the Control Center toggle: the system tints it for light, dark and the dimmed state.
     private static func menuBarIcon(muted: Bool) -> NSImage {
-        let height: CGFloat = 18
-        let gap: CGFloat = 4
-        let mark = claudeMark
-        let symbolName = muted ? "speaker.slash.fill" : "speaker.wave.2.fill"
-        let configuration = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
-        let speaker = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?.withSymbolConfiguration(configuration)
-        let markSize = mark == nil ? NSSize.zero : NSSize(width: height, height: height)   // Claude's PNG is 24 pt with padding: full height here
-        let speakerSize = speaker?.size ?? .zero
-        let width = markSize.width + (mark == nil || speaker == nil ? 0 : gap) + speakerSize.width
-        let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { _ in
-            mark?.draw(in: NSRect(x: 0, y: (height - markSize.height) / 2, width: markSize.width, height: markSize.height))
-            speaker?.draw(in: NSRect(x: width - speakerSize.width, y: (height - speakerSize.height) / 2,
-                                     width: speakerSize.width, height: speakerSize.height))
-            return true
-        }
+        let image = NSImage(named: muted ? "VoiceMuted" : "VoiceOn") ?? NSImage()
         image.isTemplate = true
         image.accessibilityDescription = muted ? "Claude voice muted" : "Claude voice on"
         return image
