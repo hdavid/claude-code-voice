@@ -4,9 +4,11 @@ Make Claude Code speak when it needs you, and mute it from the menu bar or Contr
 
 Two parts, one file:
 
-- **`rules/voice-alerts.md`**: a standing instruction for Claude Code. When Claude needs you (a question, an action
-  only you can take, a result you are waiting for) it says so out loud with macOS `say`, and chimes for an event
-  it was watching for. It stays silent while `~/.claude/voice-muted` exists.
+- **The `voice-alerts` Claude Code plugin**: when Claude needs you (a question, an action only you can take, a
+  result you are waiting for) it says so out loud, and chimes for an event it was watching for. It speaks through
+  `voice-say`, which lets **only one session talk at a time**: when several sessions need you at once, they queue
+  and speak one after the other instead of over each other. Permission prompts are announced too. Everything stays
+  silent while `~/.claude/voice-muted` exists.
 - **Claude Voice.app**: a menu bar switch and a Control Center toggle that create and remove that file. The icon
   follows the file either way, so "mute" typed to Claude and a click on the icon are the same switch.
 
@@ -14,13 +16,36 @@ Requires macOS 26 (Tahoe) or later. Not affiliated with Anthropic; Claude is a t
 
 ## Install
 
-1. **The rule.** Claude Code reads every `.md` under `~/.claude/rules/` as a standing instruction:
+One line installs the plugin (into `~/.claude`) and the menu bar app (into `~/Applications`). Run it again later
+to update both:
+
+```
+curl -fsSL https://raw.githubusercontent.com/hdavid/claude-code-voice/main/install.sh | sh
+```
+
+Options go after `sh -s --`:
+- `--config-dir DIR`: install the plugin into another Claude Code config directory. Repeat it for several, e.g.
+  `--config-dir ~/.claude --config-dir ~/.claude-work`.
+- `--rule-only`: copy only the rule file into `DIR/rules/`, no plugin.
+- `--no-app`, `--no-plugin`: skip one half.
+
+The app download is checked against the release's sha256. To install by hand instead:
+
+1. **The plugin.** In Claude Code:
    ```
-   mkdir -p ~/.claude/rules
-   curl -fsSL https://raw.githubusercontent.com/hdavid/claude-code-voice/main/rules/voice-alerts.md -o ~/.claude/rules/voice-alerts.md
+   /plugin marketplace add hdavid/claude-code-voice
+   /plugin install voice-alerts@claude-code-voice
    ```
-   Or paste the file into `~/.claude/CLAUDE.md`. New sessions pick it up; the file says how Claude should time
-   and word what it speaks.
+   New sessions pick it up. It brings:
+   - the rule `rules/voice-alerts.md`, loaded into every session by a SessionStart hook, which says when and how
+     Claude should speak;
+   - `voice-say` on Claude's PATH (`bin/voice-say`): mute check, chime, and the one-at-a-time lock;
+   - a Notification hook that says "<folder> session: Claude needs your permission." when a permission dialog
+     blocks a session;
+   - `/voice-alerts:mute` and `/voice-alerts:unmute`.
+
+   Without the plugin, the rule alone still works: copy `rules/voice-alerts.md` to `~/.claude/rules/`. It then
+   falls back to a `lockf` one-liner that uses the same lock.
 2. **The app.** Download `Claude-Voice-<version>.zip` from the
    [latest release](https://github.com/hdavid/claude-code-voice/releases/latest) (signed and notarized), unzip,
    move `Claude Voice.app` to `~/Applications` or `/Applications`, open it. The Claude mark with sound waves appears in the menu bar.
@@ -38,6 +63,17 @@ Requires macOS 26 (Tahoe) or later. Not affiliated with Anthropic; Claude is a t
 - **Shortcuts and Spotlight**: the action "Toggle Claude voice" is available, so a global keyboard shortcut can be
   assigned in the Shortcuts app.
 - **From a terminal or a Claude session**: `touch ~/.claude/voice-muted` mutes, `rm ~/.claude/voice-muted` unmutes.
+  Muting also drops sentences that are still waiting for their turn.
+
+## One voice at a time
+
+`voice-say` holds an flock on `~/.claude/voice.lock` (via macOS `lockf`) while it chimes and speaks, then
+releases it after a short gap. Other sessions wait for the lock in the background, so `voice-say` returns at once
+and Claude's turn is never held up. The kernel releases the lock when the holder exits, even if it is killed, so a
+crashed session cannot leave the voice stuck. Waiting sentences are not strictly first-come, first-served, and one
+that waits more than 300 seconds is dropped. Settings, as environment variables: `CLAUDE_VOICE_WAIT` (seconds,
+default 300), `CLAUDE_VOICE_GAP` (silence between sessions, default 0.4), `CLAUDE_VOICE_CHIME` (sound file).
+`voice-say --sync` waits until its sentence has been spoken.
 
 The icon is the Claude mark with the speaker's sound waves, rendered by `scripts/make-icons.py` into
 `Shared/Assets.xcassets` and used by both the menu bar and the Control Center toggle.
@@ -70,6 +106,9 @@ listed at the top of that workflow.
 - `App/`: the menu bar app (AppKit, `LSUIElement`) and the Shortcuts intent.
 - `Control/`: the WidgetKit extension with the `ControlWidgetToggle`.
 - `rules/voice-alerts.md`: the instruction that makes Claude Code speak.
+- `.claude-plugin/`, `hooks/`, `commands/`, `bin/voice-say`, `scripts/permission-alert.sh`: the Claude Code plugin
+  and the marketplace that lists it.
+- `install.sh`: the one-line installer for the plugin and the app.
 - `project.yml`, `Signing.xcconfig`: the XcodeGen spec and signing defaults. `build.sh`, `scripts/package.sh`.
 
 ## Licence
