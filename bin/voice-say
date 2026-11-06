@@ -1,0 +1,71 @@
+#!/bin/sh
+# voice-say: speak a sentence for Claude Code, one session at a time.
+#
+#   voice-say "Firmware session: the build is done, please flash it."
+#   voice-say --chime "Backup session: the copy finished."
+#
+# Nothing plays while ~/.claude/voice-muted exists (the Claude Voice menu bar switch and Control Center toggle
+# create and remove it). Every session speaks through one lock file, so when two sessions need the user at the
+# same moment they talk one after the other instead of over each other. The command returns at once; the speech
+# waits for its turn in the background. --sync waits for it instead.
+
+set -eu
+
+CLAUDE_DIR="${CLAUDE_VOICE_DIR:-$HOME/.claude}"
+MUTE_FILE="$CLAUDE_DIR/voice-muted"
+LOCK_FILE="$CLAUDE_DIR/voice.lock"
+CHIME="${CLAUDE_VOICE_CHIME:-/System/Library/Sounds/Hero.aiff}"
+WAIT_SECONDS="${CLAUDE_VOICE_WAIT:-300}"   # give up if another session holds the voice longer than this
+GAP_SECONDS="${CLAUDE_VOICE_GAP:-0.4}"     # short silence before releasing, so two voices never run together
+
+usage() {
+	echo "usage: voice-say [--chime] [--sync] <sentence>" >&2
+	exit 2
+}
+
+# Runs while holding the lock. The mute file is read here, not earlier: the user may have muted while this
+# sentence was waiting for its turn.
+speak_locked() {
+	chime="$1"
+	shift
+	[ -e "$MUTE_FILE" ] && return 0
+	[ "$chime" = 1 ] && afplay "$CHIME" 2>/dev/null || true
+	[ "$#" -gt 0 ] && say -- "$@"
+	sleep "$GAP_SECONDS"
+}
+
+if [ "${1:-}" = "--locked" ]; then
+	shift
+	speak_locked "$@"
+	exit 0
+fi
+
+chime=0
+sync=0
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+	--chime) chime=1 ;;
+	--sync) sync=1 ;;
+	-h | --help) usage ;;
+	--) shift; break ;;
+	-*) usage ;;
+	*) break ;;
+	esac
+	shift
+done
+[ "$#" -gt 0 ] || [ "$chime" = 1 ] || usage
+
+# Muted: say nothing, and do not even queue.
+[ -e "$MUTE_FILE" ] && exit 0
+
+mkdir -p "$CLAUDE_DIR"
+self="$0"
+case "$self" in */*) ;; *) self="$(command -v "$self")" ;; esac
+
+# lockf takes an flock on the file, which the kernel releases when the holder exits, even if it is killed, so a
+# crashed session can never leave the voice locked.
+if [ "$sync" = 1 ]; then
+	exec lockf -k -s -t "$WAIT_SECONDS" "$LOCK_FILE" "$self" --locked "$chime" "$@"
+fi
+nohup lockf -k -s -t "$WAIT_SECONDS" "$LOCK_FILE" "$self" --locked "$chime" "$@" >/dev/null 2>&1 &
+exit 0

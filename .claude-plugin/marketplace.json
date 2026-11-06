@@ -1,0 +1,19 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "claude-code-voice",
+  "description": "Make Claude Code speak when it needs you",
+  "owner": {
+    "name": "Henri David",
+    "url": "https://github.com/hdavid"
+  },
+  "plugins": [
+    {
+      "name": "voice-alerts",
+      "description": "Claude speaks when it needs you (macOS say), one session at a time, and stays silent while muted",
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/hdavid/claude-code-voice",
+      "repository": "https://github.com/hdavid/claude-code-voice"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "voice-alerts",
+  "displayName": "Claude Code Voice",
+  "version": "1.1.0",
+  "description": "Claude speaks when it needs you (macOS say), one session at a time, and stays silent while muted from the menu bar, Control Center or /voice-alerts:mute",
+  "author": {
+    "name": "Henri David",
+    "url": "https://github.com/hdavid"
+  },
+  "homepage": "https://github.com/hdavid/claude-code-voice",
+  "repository": "https://github.com/hdavid/claude-code-voice",
+  "license": "MIT",
+  "keywords": ["voice", "speech", "say", "notifications", "macos", "alerts"]
+}
