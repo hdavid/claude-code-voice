@@ -49,6 +49,7 @@ With the plugin, `/voice-alerts:mute` and `/voice-alerts:unmute` do the same.
 - **Waiting on something.** For a log, a build or a device, run a background loop that waits for the condition and
   then runs `voice-say --chime "..."`. The user does not have to answer; the sound tells them it is done.
 - **Permission prompts.** With the plugin, Claude Code itself speaks when a permission dialog blocks the session
-  ("<folder> session: Claude needs your permission."). Claude does not need to announce those.
+  ("<folder> session: Claude needs your permission to use <tool>."). Claude does not need to announce those.
+  Questions (AskUserQuestion) and plans (ExitPlanMode) are not announced by the plugin: Claude speaks those.
 - **Claude cannot hear.** There is no microphone. The user still types.
 - **In addition, never instead.** Speech accompanies the written question; the question itself stays on screen.

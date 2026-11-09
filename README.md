@@ -40,8 +40,8 @@ The app download is checked against the release's sha256. To install by hand ins
    - the rule `rules/voice-alerts.md`, loaded into every session by a SessionStart hook, which says when and how
      Claude should speak;
    - `voice-say` on Claude's PATH (`bin/voice-say`): mute check, chime, and the one-at-a-time lock;
-   - a Notification hook that says "<folder> session: Claude needs your permission." when a permission dialog
-     blocks a session;
+   - a Notification hook that says "<folder> session: Claude needs your permission to use <tool>." when a
+     permission dialog blocks a session (silent for AskUserQuestion and ExitPlanMode, which Claude speaks itself);
    - `/voice-alerts:mute` and `/voice-alerts:unmute`.
 
    Without the plugin, the rule alone still works: copy `rules/voice-alerts.md` to `~/.claude/rules/`. It then
