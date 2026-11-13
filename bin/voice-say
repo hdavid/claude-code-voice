@@ -6,7 +6,8 @@
 #
 # Nothing plays while ~/.claude/voice-muted exists (the Claude Voice menu bar switch and Control Center toggle
 # create and remove it). Every session speaks through one lock file, so when two sessions need the user at the
-# same moment they talk one after the other instead of over each other. The command returns at once; the speech
+# same moment they talk one after the other instead of over each other. ~/.claude/voice-volume (5-100, written by
+# the menu bar slider) sets how loud Claude speaks without touching the Mac's volume. The command returns at once; the speech
 # waits for its turn in the background. --sync waits for it instead.
 
 set -eu
@@ -14,6 +15,7 @@ set -eu
 CLAUDE_DIR="${CLAUDE_VOICE_DIR:-$HOME/.claude}"
 MUTE_FILE="$CLAUDE_DIR/voice-muted"
 LOCK_FILE="$CLAUDE_DIR/voice.lock"
+VOLUME_FILE="$CLAUDE_DIR/voice-volume"
 CHIME="${CLAUDE_VOICE_CHIME:-/System/Library/Sounds/Hero.aiff}"
 WAIT_SECONDS="${CLAUDE_VOICE_WAIT:-300}"   # give up if another session holds the voice longer than this
 GAP_SECONDS="${CLAUDE_VOICE_GAP:-0.4}"     # short silence before releasing, so two voices never run together
@@ -23,14 +25,42 @@ usage() {
 	exit 2
 }
 
-# Runs while holding the lock. The mute file is read here, not earlier: the user may have muted while this
-# sentence was waiting for its turn.
+# Claude's own volume, 5-100 percent of the Mac's output (the Claude Voice menu bar slider writes it). Prints it
+# as an afplay gain, 0.05-1.00; a missing or bad file means full volume.
+volume_gain() {
+	# digits only, at most three, leading zeros dropped (sh would read "08" as octal)
+	pct="$( { tr -cd '0-9' <"$VOLUME_FILE"; } 2>/dev/null | cut -c1-3 | sed 's/^0*\(.\)/\1/')" || pct=""
+	[ -n "$pct" ] || pct=100
+	[ "$pct" -gt 100 ] && pct=100
+	[ "$pct" -lt 5 ] && pct=5
+	printf '%d.%02d\n' $((pct / 100)) $((pct % 100))
+}
+
+# `say` has no volume of its own (its [[volm]] command is ignored by the current voices), so below full volume the
+# sentence is rendered to a file and played with afplay at the chosen gain.
+speak_at() {
+	gain="$1"
+	shift
+	if [ "$gain" = 1.00 ]; then
+		say -- "$@"
+		return
+	fi
+	tmp_dir="$(mktemp -d "$CLAUDE_DIR/voice-say.XXXXXX")" || { say -- "$@"; return; }
+	if say -o "$tmp_dir/s.aiff" -- "$@"; then
+		afplay -v "$gain" "$tmp_dir/s.aiff" || true
+	fi
+	rm -rf "$tmp_dir"
+}
+
+# Runs while holding the lock. The mute and volume files are read here, not earlier: the user may have changed
+# them while this sentence was waiting for its turn.
 speak_locked() {
 	chime="$1"
 	shift
 	[ -e "$MUTE_FILE" ] && return 0
-	[ "$chime" = 1 ] && afplay "$CHIME" 2>/dev/null || true
-	[ "$#" -gt 0 ] && say -- "$@"
+	gain="$(volume_gain)"
+	[ "$chime" = 1 ] && afplay -v "$gain" "$CHIME" 2>/dev/null || true
+	[ "$#" -gt 0 ] && speak_at "$gain" "$@"
 	sleep "$GAP_SECONDS"
 }
 
