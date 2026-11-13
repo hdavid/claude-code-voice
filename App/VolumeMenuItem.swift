@@ -15,7 +15,8 @@ final class VolumeMenuItemView: NSView {
         self.onRelease = onRelease
         slider = NSSlider(value: Double(percent), minValue: Double(VoiceVolume.minimum),
                           maxValue: Double(VoiceVolume.maximum), target: nil, action: nil)
-        super.init(frame: NSRect(x: 0, y: 0, width: 260, height: 46))
+        super.init(frame: NSRect(x: 0, y: 0, width: 200, height: 46))
+        autoresizingMask = [.width]   // follow the menu's width instead of setting it
 
         let title = NSTextField(labelWithString: "Claude's volume")
         title.font = .menuFont(ofSize: 0)
@@ -34,12 +35,12 @@ final class VolumeMenuItemView: NSView {
             addSubview(view)
         }
         NSLayoutConstraint.activate([
-            title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+            title.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
             title.topAnchor.constraint(equalTo: topAnchor, constant: 4),
-            valueLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+            valueLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
             valueLabel.firstBaselineAnchor.constraint(equalTo: title.firstBaselineAnchor),
-            slider.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
-            slider.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+            slider.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 20),
+            slider.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -20),
             slider.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 4),
         ])
         showValue(percent)

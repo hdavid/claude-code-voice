@@ -54,7 +54,7 @@ The app download is checked against the release's sha256. To install by hand ins
 ## Use
 
 - **Menu bar**: click the icon for Claude's volume slider, Mute, "Open at login" and Quit. The slider changes only
-  Claude's voice and chime, not the Mac's volume; letting go plays a short sample at the new level. Option-click
+  Claude's voice and chime, not the Mac's volume; letting go plays a short sample at the new level. Option- or Control-click
   the icon to mute or unmute at once. While muted the mark is struck through and the icon is dimmed. Unmuting
   plays a short pop, so you hear that the voice is back.
 - **Control Center**: open Control Center, "Edit Controls…" at the bottom, add "Claude voice". The toggle is ON

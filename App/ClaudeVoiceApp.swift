@@ -6,7 +6,7 @@ import os
 /// Menu bar switch for Claude's spoken alerts.
 ///
 /// Click the icon: a menu with the state, Mute, Claude's volume slider, "Open at login" and Quit.
-/// Option-click: mute or unmute at once. The icon follows the file, so a "mute" typed to Claude shows up here too.
+/// Option- or Control-click: mute or unmute at once. The icon follows the file, so a "mute" typed to Claude shows up here too.
 @main
 final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
     static func main() {
@@ -44,10 +44,12 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
 
     // MARK: - Clicks
 
-    /// Click (left or right): the menu with the volume slider and Mute. Option-click: mute or unmute at once.
+    /// Click or right-click: the menu with the volume slider and Mute. Option- or Control-click: mute or unmute at once.
     @objc private func statusItemClicked(_ sender: Any?) {
-        let event = NSApp.currentEvent
-        let quickToggle = event?.type == .leftMouseUp && event?.modifierFlags.contains(.option) == true
+        // The keys held right now: the status item's event carries no modifier flags (measured: flags 0 while
+        // Control was held), and Control-click arrives as a right click.
+        let held = NSEvent.modifierFlags
+        let quickToggle = held.contains(.option) || held.contains(.control)
         if quickToggle {
             setMuted(!MuteState.isMuted)
         } else {
@@ -112,7 +114,7 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
 
-        let hint = NSMenuItem(title: "Option-click the icon to mute at once. Control Center: add “Claude Voice”.", action: nil, keyEquivalent: "")
+        let hint = NSMenuItem(title: "Control- or Option-click: mute at once", action: nil, keyEquivalent: "")
         hint.isEnabled = false
         menu.addItem(hint)
 
@@ -148,8 +150,8 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
         statusItem?.button?.image = Self.menuBarIcon(muted: muted)
         statusItem?.button?.appearsDisabled = muted
         statusItem?.button?.toolTip = muted
-            ? "Claude voice: muted. Option-click to unmute."
-            : "Claude voice: on, \(VoiceVolume.percent) %. Click for the volume, option-click to mute."
+            ? "Claude voice: muted. Control-click to unmute."
+            : "Claude voice: on, \(VoiceVolume.percent) %. Click for the volume, control-click to mute."
         ControlCenter.shared.reloadControls(ofKind: MuteState.controlKind)
     }
 
