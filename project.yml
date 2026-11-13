@@ -17,8 +17,8 @@ settings:
     CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO   # no get-task-allow in a shipped signature
     ENABLE_HARDENED_RUNTIME: YES
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "1.2.1"
-    CURRENT_PROJECT_VERSION: "5"
+    MARKETING_VERSION: "1.3.0"
+    CURRENT_PROJECT_VERSION: "6"
 targets:
   ClaudeVoice:
     type: application
@@ -34,6 +34,13 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSUIElement: true   # menu bar only: no Dock icon, no app menu
         NSHumanReadableCopyright: ""
+        NSMicrophoneUsageDescription: Claude Voice listens only after it asks "Reply?", to take your spoken answer to Claude.
+        NSSpeechRecognitionUsageDescription: Your spoken answer is turned into text on this Mac and sent to the Claude session that asked.
+    # Hardened runtime: the microphone needs its entitlement, or the input stays silent.
+    entitlements:
+      path: App/ClaudeVoice.entitlements
+      properties:
+        com.apple.security.device.audio-input: true
     settings:
       base:
         PRODUCT_NAME: Claude Voice

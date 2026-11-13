@@ -1,0 +1,63 @@
+#!/bin/sh
+# voice-ask: ask the user a question out loud and wait for a spoken answer.
+#
+#   voice-ask "Firmware session: flash the pink unit or the black one?"
+#
+# The Claude Voice app speaks the question, asks "Reply?", and on "yes" takes the user's dictation, reads it back
+# and asks "Send, redo, or cancel?". On "send" the text is printed on stdout and voice-ask exits 0.
+# Any other end prints the reason on stderr and exits non-zero, and Claude asks on screen instead:
+#   1 no reply (declined, nothing heard, cancelled, timed out)
+#   2 voice replies are off, voice is muted, or the Claude Voice app is not running
+# It waits its turn behind other sessions' speech (the shared voice lock) and holds the lock for the whole exchange.
+
+set -eu
+
+CLAUDE_DIR="${CLAUDE_VOICE_DIR:-$HOME/.claude}"
+MUTE_FILE="$CLAUDE_DIR/voice-muted"
+REPLIES_ON="$CLAUDE_DIR/voice-replies"
+REQ_DIR="$CLAUDE_DIR/voice-ask"
+LOCK_FILE="$CLAUDE_DIR/voice.lock"
+WAIT_SECONDS="${CLAUDE_VOICE_WAIT:-300}"   # for the voice lock
+ANSWER_SECONDS="${CLAUDE_VOICE_ANSWER:-240}"   # for the whole spoken exchange
+
+off() { echo "voice-ask: $*" >&2; exit 2; }
+
+# Runs while holding the lock: hand the question to the app and wait for its answer file.
+ask_locked() {
+	[ -e "$MUTE_FILE" ] && off "voice is muted"
+	mkdir -p "$REQ_DIR"
+	id="$(date +%s)-$$"
+	req="$REQ_DIR/$id.ask"
+	trap 'rm -f "$REQ_DIR/$id".*' EXIT INT TERM HUP
+	printf '%s\n' "$1" >"$REQ_DIR/$id.tmp"
+	mv "$REQ_DIR/$id.tmp" "$req"
+	waited=0
+	while [ "$waited" -lt $((ANSWER_SECONDS * 4)) ]; do
+		if [ -e "$REQ_DIR/$id.reply" ]; then
+			cat "$REQ_DIR/$id.reply"
+			exit 0
+		fi
+		if [ -e "$REQ_DIR/$id.none" ]; then
+			echo "voice-ask: no reply: $(cat "$REQ_DIR/$id.none")" >&2
+			exit 1
+		fi
+		sleep 0.25
+		waited=$((waited + 1))
+	done
+	echo "voice-ask: no reply: timed out after ${ANSWER_SECONDS}s" >&2
+	exit 1
+}
+
+if [ "${1:-}" = "--locked" ]; then
+	shift
+	ask_locked "$@"
+fi
+
+[ "$#" -eq 1 ] && [ -n "$1" ] || { echo 'usage: voice-ask "<question>"' >&2; exit 64; }
+[ -e "$REPLIES_ON" ] || off "voice replies are off (Claude Voice menu: Voice replies)"
+[ -e "$MUTE_FILE" ] && off "voice is muted"
+pgrep -x "Claude Voice" >/dev/null || off "the Claude Voice app is not running"
+
+self="$0"
+case "$self" in */*) ;; *) self="$(command -v "$self")" ;; esac
+exec lockf -k -s -t "$WAIT_SECONDS" "$LOCK_FILE" "$self" --locked "$1"
