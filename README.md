@@ -22,7 +22,7 @@ Other config folders: `sh -s -- --config-dir ~/.claude-work`.
 
 ## Use
 
-- **Click** the icon: the menu. **Control- or Option-click**: mute at once.
+- **Click** the icon: the menu. **Double-click** (or Control-click): mute at once.
 - **Voice replies**: switch on in the menu. macOS asks once for the microphone and speech recognition.
   Recognition runs on the Mac.
 - **From a shell**: `touch ~/.claude/voice-muted` mutes, `echo 40 > ~/.claude/voice-volume` sets 40 %.

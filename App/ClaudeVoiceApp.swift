@@ -23,8 +23,10 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
     private var watcher: DirectoryWatcher?
     private var pollTimer: Timer?
     private var shownMuted: Bool?
+    private var pendingMenu: Timer?
     private let preview = VolumePreview()
     private let replies = VoiceReplies()
+    private let updater = Updater()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -49,21 +51,48 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
             }
         }
         replies.start()
+        updater.start()
     }
 
     // MARK: - Clicks
 
-    /// Click or right-click: the menu with the volume slider and Mute. Option- or Control-click: mute or unmute at once.
+    /// Click: the menu (after a short wait, to tell it from a double-click). Right-click: the menu at once.
+    /// Double-click, Option-click or Control-click: mute or unmute at once.
     @objc private func statusItemClicked(_ sender: Any?) {
         // The keys held right now: the status item's event carries no modifier flags (measured: flags 0 while
         // Control was held), and Control-click arrives as a right click.
         let held = NSEvent.modifierFlags
-        let quickToggle = held.contains(.option) || held.contains(.control)
-        if quickToggle {
+        if held.contains(.option) || held.contains(.control) {
+            cancelPendingMenu()
             setMuted(!MuteState.isMuted)
-        } else {
-            showMenu()
+            return
         }
+        guard NSApp.currentEvent?.type == .leftMouseUp else {
+            cancelPendingMenu()
+            showMenu()
+            return
+        }
+        // A second click while the first one's menu is still pending: a double-click.
+        if pendingMenu != nil {
+            cancelPendingMenu()
+            setMuted(!MuteState.isMuted)
+            return
+        }
+        let wait = min(NSEvent.doubleClickInterval, Self.doubleClickWait)
+        pendingMenu = Timer.scheduledTimer(withTimeInterval: wait, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.pendingMenu = nil
+                self?.showMenu()
+            }
+        }
+    }
+
+    /// The longest the menu waits for a second click; the system's double-click speed when that is shorter.
+    private static let doubleClickWait: TimeInterval = 0.3
+
+    private func cancelPendingMenu() {
+        pendingMenu?.invalidate()
+        pendingMenu = nil
     }
 
     private func volumeChanged(_ percent: Int) {
@@ -78,6 +107,16 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
 
     @objc private func toggleFromMenu(_ sender: Any?) {
         setMuted(!MuteState.isMuted)
+    }
+
+    @objc private func installUpdate(_ sender: Any?) {
+        updater.install { [weak self] reason in
+            self?.presentError(title: "Could not update Claude Voice", detail: "\(reason)\nThe release page opens instead.")
+        }
+    }
+
+    @objc private func toggleUpdateCheck(_ sender: Any?) {
+        updater.toggleSetting()
     }
 
     @objc private func toggleReplies(_ sender: Any?) {
@@ -115,6 +154,11 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
         guard let item = statusItem else { return }
         let muted = MuteState.isMuted
         let menu = NSMenu()
+
+        if let update = updater.updateItem(target: self, action: #selector(installUpdate(_:))) {
+            menu.addItem(update)
+            menu.addItem(.separator())
+        }
 
         let state = NSMenuItem(title: muted ? "Claude voice: muted" : "Claude voice: on", action: nil, keyEquivalent: "")
         state.isEnabled = false
@@ -154,8 +198,9 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
+        menu.addItem(updater.settingItem(target: self, action: #selector(toggleUpdateCheck(_:))))
 
-        let hint = NSMenuItem(title: "Control- or Option-click: mute at once", action: nil, keyEquivalent: "")
+        let hint = NSMenuItem(title: "Double-click: mute at once", action: nil, keyEquivalent: "")
         hint.isEnabled = false
         menu.addItem(hint)
 
@@ -191,8 +236,8 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
         statusItem?.button?.image = Self.menuBarIcon(muted: muted)
         statusItem?.button?.appearsDisabled = muted
         statusItem?.button?.toolTip = muted
-            ? "Claude voice: muted. Control-click to unmute."
-            : "Claude voice: on, \(VoiceVolume.percent) %. Click for the volume, control-click to mute."
+            ? "Claude voice: muted. Double-click to unmute."
+            : "Claude voice: on, \(VoiceVolume.percent) %. Click for the volume, double-click to mute."
         ControlCenter.shared.reloadControls(ofKind: MuteState.controlKind)
     }
 
