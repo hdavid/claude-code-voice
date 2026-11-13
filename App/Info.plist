@@ -24,5 +24,9 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string></string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Claude Voice listens only after it asks "Reply?", to take your spoken answer to Claude.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Your spoken answer is turned into text on this Mac and sent to the Claude session that asked.</string>
 </dict>
 </plist>

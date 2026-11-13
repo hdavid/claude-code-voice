@@ -51,5 +51,25 @@ With the plugin, `/voice-alerts:mute` and `/voice-alerts:unmute` do the same.
 - **Permission prompts.** With the plugin, Claude Code itself speaks when a permission dialog blocks the session
   ("<folder> session: Claude needs your permission to use <tool>."). Claude does not need to announce those.
   Questions (AskUserQuestion) and plans (ExitPlanMode) are not announced by the plugin: Claude speaks those.
-- **Claude cannot hear.** There is no microphone. The user still types.
+- **Claude hears only through `voice-ask`** (below). Without it there is no microphone and the user types.
 - **In addition, never instead.** Speech accompanies the written question; the question itself stays on screen.
+
+## Voice replies: `voice-ask`
+
+When the user has switched on "Voice replies" in the Claude Voice menu, they can answer a question out loud. For
+every question:
+
+1. Write the question and its options on screen first, as usual.
+2. Run `voice-ask "<subject>: <question>, options in a few words"` as a foreground Bash call with
+   `timeout: 600000`. It waits its turn on the voice lock; the app speaks the question, asks "Reply?", takes the
+   dictation, reads it back and asks "Send, redo, or cancel?".
+3. **Exit 0:** stdout is the user's answer in their own words. Act on it as the answer; when it names an option,
+   take that option; when it is unclear, ask on screen with AskUserQuestion.
+4. **Exit 1** (declined, nothing heard, cancelled): ask on screen with AskUserQuestion, without `voice-say`; the
+   question was already spoken.
+5. **Exit 2** (voice replies off, muted, or the app not running; returns at once): the usual `voice-say` first,
+   then AskUserQuestion.
+
+`voice-ask` takes the place of `voice-say` for questions; announcements that need no answer still use `voice-say`.
+A dictated answer comes from speech recognition: read names, numbers and commands in it with care, and confirm
+anything destructive or irreversible on screen before doing it.

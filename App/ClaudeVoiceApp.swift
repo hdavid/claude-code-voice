@@ -8,6 +8,7 @@ import os
 /// Click the icon: a menu with the state, Mute, Claude's volume slider, "Open at login" and Quit.
 /// Option- or Control-click: mute or unmute at once. The icon follows the file, so a "mute" typed to Claude shows up here too.
 @main
+@MainActor
 final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
     static func main() {
         let app = NSApplication.shared
@@ -23,6 +24,7 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
     private var pollTimer: Timer?
     private var shownMuted: Bool?
     private let preview = VolumePreview()
+    private let replies = VoiceReplies()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -39,7 +41,14 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
             log.error("cannot watch \(MuteState.directoryURL.path, privacy: .public); polling only")
         }
         // Belt and braces: a slow poll in case an event is missed.
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.refresh() }
+        // A timer scheduled here fires on the main run loop, so the main actor is already ours.
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.refresh()
+                self?.replies.poll()
+            }
+        }
+        replies.start()
     }
 
     // MARK: - Clicks
@@ -69,6 +78,23 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
 
     @objc private func toggleFromMenu(_ sender: Any?) {
         setMuted(!MuteState.isMuted)
+    }
+
+    @objc private func toggleReplies(_ sender: Any?) {
+        changeSetting("voice replies") { try ReplySettings.setEnabled(!ReplySettings.isEnabled) }
+    }
+
+    @objc private func toggleReadback(_ sender: Any?) {
+        changeSetting("read back") { try ReplySettings.setReadsBack(!ReplySettings.readsBack) }
+    }
+
+    private func changeSetting(_ name: String, _ change: () throws -> Void) {
+        do {
+            try change()
+        } catch {
+            log.error("\(name, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            presentError(title: "Could not change “\(name)”", detail: error.localizedDescription)
+        }
     }
 
     @objc private func toggleOpenAtLogin(_ sender: Any?) {
@@ -106,6 +132,21 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
             onChange: { [weak self] percent in self?.volumeChanged(percent) },
             onRelease: { [weak self] percent in self?.preview.play(percent: percent) })
         menu.addItem(volume)
+
+        menu.addItem(.separator())
+
+        let replyItem = NSMenuItem(title: "Voice replies", action: #selector(toggleReplies(_:)), keyEquivalent: "")
+        replyItem.target = self
+        replyItem.state = ReplySettings.isEnabled ? .on : .off
+        replyItem.toolTip = "After a spoken question, Claude asks \"Reply?\" and takes your dictated answer."
+        menu.addItem(replyItem)
+
+        let readback = NSMenuItem(title: "Read back before sending", action: #selector(toggleReadback(_:)), keyEquivalent: "")
+        readback.target = self
+        readback.state = ReplySettings.readsBack ? .on : .off
+        readback.isEnabled = ReplySettings.isEnabled
+        readback.indentationLevel = 1
+        menu.addItem(readback)
 
         menu.addItem(.separator())
 

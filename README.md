@@ -68,6 +68,17 @@ The app download is checked against the release's sha256. To install by hand ins
   `echo 40 > ~/.claude/voice-volume` sets Claude's volume to 40 %.
   Muting also drops sentences that are still waiting for their turn.
 
+## Answer out loud
+
+Switch on **Voice replies** in the menu. When Claude asks a question, the app speaks it and asks "Reply?". Say
+"yes", then your answer after the tink; stop talking for two seconds to finish. The app reads it back and asks
+"Send, redo, or cancel?" ("Read back before sending" in the menu turns that step off). "Send" hands the text to the
+session that asked, as if you had typed it. Anything else, or silence, and the question waits on screen as usual.
+
+The first time, macOS asks for Microphone and Speech Recognition access. Recognition runs on the Mac (on-device);
+the microphone is only open while the app is waiting for an answer. Sessions ask through `voice-ask "question"`,
+which prints the confirmed answer.
+
 ## One voice at a time
 
 `voice-say` holds an flock on `~/.claude/voice.lock` (via macOS `lockf`) while it chimes and speaks, then
@@ -105,11 +116,12 @@ listed at the top of that workflow.
 
 ## Layout
 
-- `Shared/MuteState.swift`: the one file, read and written by both targets.
-- `App/`: the menu bar app (AppKit, `LSUIElement`) and the Shortcuts intent.
+- `Shared/`: the state files both targets read and write (mute, volume, voice-reply switches).
+- `App/`: the menu bar app (AppKit, `LSUIElement`), the Shortcuts intent, and voice replies (`VoiceReplies`,
+  `Listener`, `Speaker`).
 - `Control/`: the WidgetKit extension with the `ControlWidgetToggle`.
 - `rules/voice-alerts.md`: the instruction that makes Claude Code speak.
-- `.claude-plugin/`, `hooks/`, `commands/`, `bin/voice-say`, `scripts/permission-alert.sh`: the Claude Code plugin
+- `.claude-plugin/`, `hooks/`, `commands/`, `bin/voice-say`, `bin/voice-ask`, `scripts/permission-alert.sh`: the Claude Code plugin
   and the marketplace that lists it.
 - `install.sh`: the one-line installer for the plugin and the app.
 - `project.yml`, `Signing.xcconfig`: the XcodeGen spec and signing defaults. `build.sh`, `scripts/package.sh`.
