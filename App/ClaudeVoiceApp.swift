@@ -5,8 +5,8 @@ import os
 
 /// Menu bar switch for Claude's spoken alerts.
 ///
-/// Click the icon: toggles the mute. Right-click (or control-click): a menu with the state,
-/// "Open at login" and Quit. The icon follows the file, so a "mute" typed to Claude shows up here too.
+/// Click the icon: a menu with the state, Mute, Claude's volume slider, "Open at login" and Quit.
+/// Option-click: mute or unmute at once. The icon follows the file, so a "mute" typed to Claude shows up here too.
 @main
 final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
     static func main() {
@@ -22,6 +22,7 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
     private var watcher: DirectoryWatcher?
     private var pollTimer: Timer?
     private var shownMuted: Bool?
+    private let preview = VolumePreview()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -43,15 +44,24 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
 
     // MARK: - Clicks
 
+    /// Click (left or right): the menu with the volume slider and Mute. Option-click: mute or unmute at once.
     @objc private func statusItemClicked(_ sender: Any?) {
         let event = NSApp.currentEvent
-        let wantsMenu = event?.type == .rightMouseUp
-            || event?.modifierFlags.contains(.control) == true
-            || event?.modifierFlags.contains(.option) == true
-        if wantsMenu {
-            showMenu()
-        } else {
+        let quickToggle = event?.type == .leftMouseUp && event?.modifierFlags.contains(.option) == true
+        if quickToggle {
             setMuted(!MuteState.isMuted)
+        } else {
+            showMenu()
+        }
+    }
+
+    private func volumeChanged(_ percent: Int) {
+        do {
+            try VoiceVolume.setPercent(percent)
+            shownMuted = nil   // the tooltip shows the level
+            refresh()
+        } catch {
+            log.error("could not save the volume: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -88,19 +98,28 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
+        let volume = NSMenuItem()
+        volume.view = VolumeMenuItemView(
+            percent: VoiceVolume.percent,
+            onChange: { [weak self] percent in self?.volumeChanged(percent) },
+            onRelease: { [weak self] percent in self?.preview.play(percent: percent) })
+        menu.addItem(volume)
+
+        menu.addItem(.separator())
+
         let login = NSMenuItem(title: "Open at login", action: #selector(toggleOpenAtLogin(_:)), keyEquivalent: "")
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
 
-        let hint = NSMenuItem(title: "Click the icon to toggle. Control Center: add “Claude Voice”.", action: nil, keyEquivalent: "")
+        let hint = NSMenuItem(title: "Option-click the icon to mute at once. Control Center: add “Claude Voice”.", action: nil, keyEquivalent: "")
         hint.isEnabled = false
         menu.addItem(hint)
 
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Claude Voice", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
 
-        // Pop the menu for this click only; the next plain click toggles again.
+        // Attach the menu for this click only, so the next click comes back to statusItemClicked.
         item.menu = menu
         item.button?.performClick(nil)
         item.menu = nil
@@ -128,7 +147,9 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
         shownMuted = muted
         statusItem?.button?.image = Self.menuBarIcon(muted: muted)
         statusItem?.button?.appearsDisabled = muted
-        statusItem?.button?.toolTip = muted ? "Claude voice: muted. Click to unmute." : "Claude voice: on. Click to mute."
+        statusItem?.button?.toolTip = muted
+            ? "Claude voice: muted. Option-click to unmute."
+            : "Claude voice: on, \(VoiceVolume.percent) %. Click for the volume, option-click to mute."
         ControlCenter.shared.reloadControls(ofKind: MuteState.controlKind)
     }
 

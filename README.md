@@ -8,9 +8,10 @@ Two parts, one file:
   result you are waiting for) it says so out loud, and chimes for an event it was watching for. It speaks through
   `voice-say`, which lets **only one session talk at a time**: when several sessions need you at once, they queue
   and speak one after the other instead of over each other. Permission prompts are announced too. Everything stays
-  silent while `~/.claude/voice-muted` exists.
-- **Claude Voice.app**: a menu bar switch and a Control Center toggle that create and remove that file. The icon
-  follows the file either way, so "mute" typed to Claude and a click on the icon are the same switch.
+  silent while `~/.claude/voice-muted` exists. `~/.claude/voice-volume` (5 to 100) sets how loud Claude speaks,
+  without touching the Mac's volume.
+- **Claude Voice.app**: a menu bar switch with Claude's volume slider, and a Control Center toggle. The icon
+  follows the mute file either way, so "mute" typed to Claude and the menu are the same switch.
 
 Requires macOS 26 (Tahoe) or later. Not affiliated with Anthropic; Claude is a trademark of Anthropic, PBC.
 
@@ -52,9 +53,10 @@ The app download is checked against the release's sha256. To install by hand ins
 
 ## Use
 
-- **Menu bar**: click the icon to mute or unmute. While muted the mark is struck through and the icon is dimmed.
-  Right-click (or control-click) for the state, "Open at login" and Quit. Unmuting plays a short pop, so you hear
-  that the voice is back.
+- **Menu bar**: click the icon for Claude's volume slider, Mute, "Open at login" and Quit. The slider changes only
+  Claude's voice and chime, not the Mac's volume; letting go plays a short sample at the new level. Option-click
+  the icon to mute or unmute at once. While muted the mark is struck through and the icon is dimmed. Unmuting
+  plays a short pop, so you hear that the voice is back.
 - **Control Center**: open Control Center, "Edit Controls…" at the bottom, add "Claude voice". The toggle is ON
   when Claude speaks. It can also be placed in the menu bar from there. The app must have been launched once, and
   the gallery lists the control only from its second opening: macOS asks the extension for its controls when the
@@ -63,6 +65,7 @@ The app download is checked against the release's sha256. To install by hand ins
 - **Shortcuts and Spotlight**: the action "Toggle Claude voice" is available, so a global keyboard shortcut can be
   assigned in the Shortcuts app.
 - **From a terminal or a Claude session**: `touch ~/.claude/voice-muted` mutes, `rm ~/.claude/voice-muted` unmutes.
+  `echo 40 > ~/.claude/voice-volume` sets Claude's volume to 40 %.
   Muting also drops sentences that are still waiting for their turn.
 
 ## One voice at a time
