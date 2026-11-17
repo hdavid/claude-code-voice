@@ -44,13 +44,15 @@ With the plugin, `/voice-alerts:mute` and `/voice-alerts:unmute` do the same.
 - **Timing.** The sound plays when the question is actually on screen, never before. Write the answer text first,
   then send `voice-say` and the question together in the same final message. Never speak at the start of a turn
   and then carry on with more work or prose.
+- **Order.** In that message the `voice-say` call comes FIRST and the question AFTER it. Tool calls run in the order
+  they are sent and a question waits for the answer, so a `voice-say` placed after the question only speaks once
+  the user has already answered.
 - **Wording.** One short sentence: the session's subject first ("Firmware session: ..."), then what the user
   should do.
 - **Waiting on something.** For a log, a build or a device, run a background loop that waits for the condition and
   then runs `voice-say --chime "..."`. The user does not have to answer; the sound tells them it is done.
-- **Permission prompts.** With the plugin, Claude Code itself speaks when a permission dialog blocks the session
-  ("<folder> session: Claude needs your permission to use <tool>."). Claude does not need to announce those.
-  Questions (AskUserQuestion) and plans (ExitPlanMode) are not announced by the plugin: Claude speaks those.
+- **Permission prompts.** Nothing announces them; the plugin does not speak for permission dialogs.
+  Questions (AskUserQuestion) and plans (ExitPlanMode) are spoken by Claude itself.
 - **Claude hears only through `voice-ask`** (below). Without it there is no microphone and the user types.
 - **In addition, never instead.** Speech accompanies the written question; the question itself stays on screen.
 

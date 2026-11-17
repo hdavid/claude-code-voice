@@ -11,6 +11,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # The plugin never speaks for permission dialogs; this fails if that hook comes back.
+      - name: No permission alert
+        run: scripts/check-no-permission-alert.sh
+
       - name: Tools
         run: |
           brew install xcodegen
