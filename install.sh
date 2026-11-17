@@ -8,7 +8,7 @@
 #   --config-dir DIR   Claude Code config directory to install the plugin into (repeatable).
 #                      Default: $CLAUDE_CONFIG_DIR, or ~/.claude.
 #   --rule-only        Copy the voice rule into DIR/rules/ instead of installing the plugin
-#                      (no voice-say, no permission alerts; the rule falls back to a lockf one-liner).
+#                      (no voice-say; the rule falls back to a lockf one-liner).
 #   --no-plugin        Skip the plugin (and the rule).
 #   --no-app           Skip the menu bar app.
 #
