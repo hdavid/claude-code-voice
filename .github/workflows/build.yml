@@ -29,3 +29,4 @@ jobs:
           name: Claude-Voice-unsigned
           path: dist/*.zip
           if-no-files-found: error
+          retention-days: 1 # only proves the build; releases come from release.yml
