@@ -1,35 +1,31 @@
 # Claude Code Voice
 
-<img src="docs/menu.png" alt="The Claude Voice menu: mute, Claude's volume, voice replies" width="429">
+> ## [→ w0ts.github.io/claude-code-voice](https://w0ts.github.io/claude-code-voice/)
+> **What Claude Voice is, how to install and use it: on the site.**
+> This README is for developers.
 
-Claude Code speaks when it needs you. You can answer out loud.
+Two parts: a Claude Code plugin (the voice rule and the `voice-say` / `voice-ask` commands) and a macOS menu bar app,
+Claude Voice, with its Control Center toggle. They talk through files in `~/.claude`: `voice-muted`, `voice-volume`,
+`voice.lock`, `voice-call-apps`.
 
-- **One voice at a time.** Several sessions queue instead of talking over each other.
-- **Claude's own volume.** A slider for Claude only, never the Mac's volume.
-- **Voice replies.** Claude asks "Reply?"; say yes, dictate, hear it read back, say "send".
-- **Mute** from the menu bar, Control Center, or `/voice-alerts:mute`.
-- **Silent during calls.** Muted while Teams, Slack, Zoom, FaceTime or a browser uses the mic (not Ableton & co).
-- **Missed while muted?** The icon flashes red with the session's name; the menu lists what was not said.
+## Layout
 
-macOS 26 or later. Not affiliated with Anthropic.
+| Path | What |
+|---|---|
+| `.claude-plugin/` | Plugin and marketplace manifests |
+| `rules/voice-alerts.md` | The rule loaded into every session: when and how Claude speaks |
+| `bin/voice-say`, `bin/voice-ask` | Speak through the shared lock and the mute file; ask and hear the spoken answer |
+| `commands/` | `/voice-alerts:mute`, `/voice-alerts:unmute` |
+| `hooks/hooks.json` | Loads `rules/voice-alerts.md` into every session at start |
+| `App/` | The menu bar app (SwiftUI): menu, volume, voice replies, call detection, missed alerts, self-update |
+| `Control/` | The Control Center toggle (WidgetKit control) |
+| `Shared/` | State shared by the app and the control: mute, volume, reply settings, icons |
+| `install.sh` | The one-line installer: plugin into `~/.claude`, the latest release's app into `~/Applications` |
+| `site/` | The user site, deployed by `.github/workflows/pages.yml` |
+| `scripts/` | Packaging, icons, tests |
 
-## Install
-
-```
-curl -fsSL https://raw.githubusercontent.com/w0ts/claude-code-voice/main/install.sh | sh
-```
-
-Installs the plugin into `~/.claude` and the app into `~/Applications`. Run again to update.
-Other config folders: `sh -s -- --config-dir ~/.claude-work`.
-
-## Use
-
-- **Click** the icon: the menu. **Double-click** (or Control-click): mute at once.
-- **Voice replies**: switch on in the menu. macOS asks once for the microphone and speech recognition.
-  Recognition runs on the Mac.
-- **Calls**: "Mute during calls" in the menu (on by default). The call apps are in `~/.claude/voice-call-apps`,
-  one bundle ID prefix and a name per line; add yours with `osascript -e 'id of app "Name"'`.
-- **From a shell**: `touch ~/.claude/voice-muted` mutes, `echo 40 > ~/.claude/voice-volume` sets 40 %.
+The bundle IDs stay `io.github.hdavid.claude-code-voice(.control)` from before the move to w0ts: changing them resets
+macOS's microphone and speech permissions and breaks the Control Center toggle and self-update for installed apps.
 
 ## Build
 
@@ -37,6 +33,15 @@ Other config folders: `sh -s -- --config-dir ~/.claude-work`.
 brew install xcodegen && ./build.sh
 ```
 
-Put your signing identity in a git-ignored `Local.xcconfig` (see `Signing.xcconfig`).
+Builds Release, installs to `~/Applications` and relaunches (`--no-launch` to skip). Put your signing identity in a
+git-ignored `Local.xcconfig` (see `Signing.xcconfig`).
 
-MIT licence.
+Tests: `scripts/test-voice-say.sh`; `scripts/check-no-permission-alert.sh` (also in CI) fails if the plugin ever speaks
+for permission dialogs again.
+
+## Release
+
+Push a `v*` tag: `.github/workflows/release.yml` builds, signs, notarizes and attaches `Claude-Voice-<tag>.zip` to the
+GitHub release. Installed apps update themselves from the latest release.
+
+MIT licence. Not affiliated with Anthropic.
