@@ -4,7 +4,7 @@
   "description": "Make Claude Code speak when it needs you",
   "owner": {
     "name": "w0ts",
-    "url": "https://github.com/hdavid"
+    "url": "https://github.com/w0ts"
   },
   "plugins": [
     {
@@ -12,8 +12,8 @@
       "description": "Claude speaks when it needs you (macOS say), one session at a time, and stays silent while muted",
       "source": "./",
       "category": "productivity",
-      "homepage": "https://github.com/hdavid/claude-code-voice",
-      "repository": "https://github.com/hdavid/claude-code-voice"
+      "homepage": "https://github.com/w0ts/claude-code-voice",
+      "repository": "https://github.com/w0ts/claude-code-voice"
     }
   ]
 }

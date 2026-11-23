@@ -1,7 +1,7 @@
 #!/bin/sh
 # Install Claude Code Voice: the voice-alerts Claude Code plugin and the Claude Voice menu bar app.
 #
-#   curl -fsSL https://raw.githubusercontent.com/hdavid/claude-code-voice/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/w0ts/claude-code-voice/main/install.sh | sh
 #   curl -fsSL .../install.sh | sh -s -- --config-dir ~/.claude --config-dir ~/.claude-work
 #
 # Options:
@@ -16,7 +16,7 @@
 
 set -eu
 
-REPO="hdavid/claude-code-voice"
+REPO="w0ts/claude-code-voice"
 MARKETPLACE="claude-code-voice"
 PLUGIN="voice-alerts@$MARKETPLACE"
 APP_NAME="Claude Voice.app"

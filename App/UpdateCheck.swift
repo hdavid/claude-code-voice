@@ -5,7 +5,7 @@ import os
 /// Any failure (offline, rate limited, an unexpected answer) reads as "no update": a check that cannot tell stays
 /// quiet rather than nag. Same rules as Track Kommander's update check.
 enum UpdateCheck {
-    static let repo = "hdavid/claude-code-voice"
+    static let repo = "w0ts/claude-code-voice"
     static let latestAPI = URL(string: "https://api.github.com/repos/\(repo)/releases/latest")!
     /// Known in advance, so it can be trusted where an address out of a network answer cannot.
     static let releasesPage = URL(string: "https://github.com/\(repo)/releases")!

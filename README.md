@@ -16,7 +16,7 @@ macOS 26 or later. Not affiliated with Anthropic.
 ## Install
 
 ```
-curl -fsSL https://raw.githubusercontent.com/hdavid/claude-code-voice/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/w0ts/claude-code-voice/main/install.sh | sh
 ```
 
 Installs the plugin into `~/.claude` and the app into `~/Applications`. Run again to update.
