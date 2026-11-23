@@ -7,7 +7,7 @@
 # and asks "Send, redo, or cancel?". On "send" the text is printed on stdout and voice-ask exits 0.
 # Any other end prints the reason on stderr and exits non-zero, and Claude asks on screen instead:
 #   1 no reply (declined, nothing heard, cancelled, timed out)
-#   2 voice replies are off, voice is muted, or the Claude Voice app is not running
+#   2 voice replies are off, voice is muted, a call has the microphone, or the Claude Voice app is not running
 # It waits its turn behind other sessions' speech (the shared voice lock) and holds the lock for the whole exchange.
 
 set -eu
@@ -25,6 +25,7 @@ off() { echo "voice-ask: $*" >&2; exit 2; }
 # Runs while holding the lock: hand the question to the app and wait for its answer file.
 ask_locked() {
 	[ -e "$MUTE_FILE" ] && off "voice is muted"
+	[ -e "$CLAUDE_DIR/voice-in-call" ] && off "in a call (the microphone is taken)"
 	mkdir -p "$REQ_DIR"
 	id="$(date +%s)-$$"
 	req="$REQ_DIR/$id.ask"
@@ -57,6 +58,7 @@ fi
 [ -e "$REPLIES_ON" ] || off "voice replies are off (Claude Voice menu: Voice replies)"
 [ -e "$MUTE_FILE" ] && off "voice is muted"
 pgrep -x "Claude Voice" >/dev/null || off "the Claude Voice app is not running"
+[ -e "$CLAUDE_DIR/voice-in-call" ] && off "in a call (the microphone is taken)"
 
 self="$0"
 case "$self" in */*) ;; *) self="$(command -v "$self")" ;; esac

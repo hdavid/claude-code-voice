@@ -16,6 +16,9 @@ CLAUDE_DIR="${CLAUDE_VOICE_DIR:-$HOME/.claude}"
 MUTE_FILE="$CLAUDE_DIR/voice-muted"
 LOCK_FILE="$CLAUDE_DIR/voice.lock"
 VOLUME_FILE="$CLAUDE_DIR/voice-volume"
+IN_CALL_FILE="$CLAUDE_DIR/voice-in-call"   # written by the Claude Voice app while a call app has the microphone
+MISSED_DIR="$CLAUDE_DIR/voice-missed"      # one file per silenced sentence: the app flashes its icon with the session
+APP_NAME="${CLAUDE_VOICE_APP:-Claude Voice}"
 CHIME="${CLAUDE_VOICE_CHIME:-/System/Library/Sounds/Hero.aiff}"
 WAIT_SECONDS="${CLAUDE_VOICE_WAIT:-300}"   # give up if another session holds the voice longer than this
 GAP_SECONDS="${CLAUDE_VOICE_GAP:-0.4}"     # short silence before releasing, so two voices never run together
@@ -38,6 +41,26 @@ limited() {
 	return "$rc"
 }
 
+app_running() {
+	pgrep -x "$APP_NAME" >/dev/null 2>&1
+}
+
+# Muted by hand, or a call app has the microphone. The call file counts only while the app runs, so a crashed app
+# can never leave Claude silent.
+silenced() {
+	[ -e "$MUTE_FILE" ] && return 0
+	[ -e "$IN_CALL_FILE" ] && app_running && return 0
+	return 1
+}
+
+# Tells the app a sentence was not spoken, so its menu bar icon flashes red with the session's name ("Bose session"
+# from "Bose session: ..."). Nothing is written when the app is not running to take it.
+record_missed() {
+	app_running || return 0
+	mkdir -p "$MISSED_DIR" 2>/dev/null || return 0
+	tmp="$MISSED_DIR/.$$.tmp"
+	printf '%s\n' "$*" >"$tmp" 2>/dev/null && mv "$tmp" "$MISSED_DIR/$(date +%s)-$$.txt" 2>/dev/null || rm -f "$tmp"
+}
 
 usage() {
 	echo "usage: voice-say [--chime] [--sync] <sentence>" >&2
@@ -71,12 +94,15 @@ speak_at() {
 	rm -rf "$tmp_dir"
 }
 
-# Runs while holding the lock. The mute and volume files are read here, not earlier: the user may have changed
+# Runs while holding the lock. The mute, call and volume files are read here, not earlier: the user may have changed
 # them while this sentence was waiting for its turn.
 speak_locked() {
 	chime="$1"
 	shift
-	[ -e "$MUTE_FILE" ] && return 0
+	if silenced; then
+		record_missed "$@"
+		return 0
+	fi
 	gain="$(volume_gain)"
 	[ "$chime" = 1 ] && limited afplay -v "$gain" "$CHIME" 2>/dev/null || true
 	[ "$#" -gt 0 ] && speak_at "$gain" "$@"
@@ -104,8 +130,11 @@ while [ "$#" -gt 0 ]; do
 done
 [ "$#" -gt 0 ] || [ "$chime" = 1 ] || usage
 
-# Muted: say nothing, and do not even queue.
-[ -e "$MUTE_FILE" ] && exit 0
+# Muted or in a call: say nothing, and do not even queue.
+if silenced; then
+	record_missed "$@"
+	exit 0
+fi
 
 mkdir -p "$CLAUDE_DIR"
 self="$0"

@@ -71,7 +71,8 @@ final class VoiceReplies {
     }
 
     private func converse(_ question: String, request: URL) async throws -> Outcome {
-        func gone() -> Bool { !FileManager.default.fileExists(atPath: request.path) || MuteState.isMuted }
+        func gone() -> Bool { !FileManager.default.fileExists(atPath: request.path) || MuteState.isMuted
+            || FileManager.default.fileExists(atPath: CallDetector.inCallURL.path) }
         try await listener.authorize()
         if !question.isEmpty { await speaker.say(question) }
         if gone() { return .none("cancelled by Claude or muted") }

@@ -8,6 +8,8 @@ Claude Code speaks when it needs you. You can answer out loud.
 - **Claude's own volume.** A slider for Claude only, never the Mac's volume.
 - **Voice replies.** Claude asks "Reply?"; say yes, dictate, hear it read back, say "send".
 - **Mute** from the menu bar, Control Center, or `/voice-alerts:mute`.
+- **Silent during calls.** Muted while Teams, Slack, Zoom, FaceTime or a browser uses the mic (not Ableton & co).
+- **Missed while muted?** The icon flashes red with the session's name; the menu lists what was not said.
 
 macOS 26 or later. Not affiliated with Anthropic.
 
@@ -25,6 +27,8 @@ Other config folders: `sh -s -- --config-dir ~/.claude-work`.
 - **Click** the icon: the menu. **Double-click** (or Control-click): mute at once.
 - **Voice replies**: switch on in the menu. macOS asks once for the microphone and speech recognition.
   Recognition runs on the Mac.
+- **Calls**: "Mute during calls" in the menu (on by default). The call apps are in `~/.claude/voice-call-apps`,
+  one bundle ID prefix and a name per line; add yours with `osascript -e 'id of app "Name"'`.
 - **From a shell**: `touch ~/.claude/voice-muted` mutes, `echo 40 > ~/.claude/voice-volume` sets 40 %.
 
 ## Build

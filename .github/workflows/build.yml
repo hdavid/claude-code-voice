@@ -15,6 +15,10 @@ jobs:
       - name: No permission alert
         run: scripts/check-no-permission-alert.sh
 
+      # Mute, call mute and the missed-sentence record, with say/afplay stubbed out.
+      - name: voice-say tests
+        run: scripts/test-voice-say.sh
+
       - name: Tools
         run: |
           brew install xcodegen

@@ -22,7 +22,9 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var watcher: DirectoryWatcher?
     private var pollTimer: Timer?
-    private var shownMuted: Bool?
+    private var shownManualMute: Bool?
+    private let calls = CallDetector()
+    private let missed = MissedAlerts()
     private var pendingMenu: Timer?
     private let preview = VolumePreview()
     private let replies = VoiceReplies()
@@ -36,6 +38,8 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         statusItem = item
+        calls.onChange = { [weak self] in self?.refresh() }
+        missed.onChange = { [weak self] in self?.refresh() }
         refresh()
         // Immediate: a vnode event on ~/.claude whenever an entry is created or removed there.
         watcher = DirectoryWatcher(directory: MuteState.directoryURL) { [weak self] in self?.refresh() }
@@ -48,10 +52,17 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
             MainActor.assumeIsolated {
                 self?.refresh()
                 self?.replies.poll()
+                self?.missed.collect(flash: true)
             }
         }
+        calls.start()
+        missed.start()
         replies.start()
         updater.start()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        calls.stop()
     }
 
     // MARK: - Clicks
@@ -62,6 +73,7 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
         // The keys held right now: the status item's event carries no modifier flags (measured: flags 0 while
         // Control was held), and Control-click arrives as a right click.
         let held = NSEvent.modifierFlags
+        missed.acknowledge()   // any click: the user has seen the flash
         if held.contains(.option) || held.contains(.control) {
             cancelPendingMenu()
             setMuted(!MuteState.isMuted)
@@ -98,8 +110,7 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
     private func volumeChanged(_ percent: Int) {
         do {
             try VoiceVolume.setPercent(percent)
-            shownMuted = nil   // the tooltip shows the level
-            refresh()
+            refresh()   // the tooltip shows the level
         } catch {
             log.error("could not save the volume: \(error.localizedDescription, privacy: .public)")
         }
@@ -121,6 +132,10 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
 
     @objc private func toggleReplies(_ sender: Any?) {
         changeSetting("voice replies") { try ReplySettings.setEnabled(!ReplySettings.isEnabled) }
+    }
+
+    @objc private func toggleCallMute(_ sender: Any?) {
+        changeSetting("mute during calls") { try calls.setEnabled(!CallDetector.isEnabled) }
     }
 
     @objc private func toggleReadback(_ sender: Any?) {
@@ -160,13 +175,21 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
             menu.addItem(.separator())
         }
 
-        let state = NSMenuItem(title: muted ? "Claude voice: muted" : "Claude voice: on", action: nil, keyEquivalent: "")
+        let state = NSMenuItem(title: stateTitle(manual: muted), action: nil, keyEquivalent: "")
         state.isEnabled = false
         menu.addItem(state)
 
         let toggle = NSMenuItem(title: muted ? "Unmute" : "Mute", action: #selector(toggleFromMenu(_:)), keyEquivalent: "")
         toggle.target = self
         menu.addItem(toggle)
+
+        let callItem = NSMenuItem(title: "Mute during calls", action: #selector(toggleCallMute(_:)), keyEquivalent: "")
+        callItem.target = self
+        callItem.state = CallDetector.isEnabled ? .on : .off
+        callItem.toolTip = "Silent while Teams, Slack, Zoom, FaceTime or a browser uses the mic. List: \(CallDetector.appsURL.path)"
+        menu.addItem(callItem)
+
+        addMissed(to: menu)
 
         menu.addItem(.separator())
 
@@ -213,6 +236,34 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
         item.menu = nil
     }
 
+    /// The sentences not spoken while muted, newest first, with their time.
+    private func addMissed(to menu: NSMenu) {
+        guard !missed.recent.isEmpty else { return }
+        menu.addItem(.separator())
+        let header = NSMenuItem(title: "Not spoken while muted", action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        menu.addItem(header)
+        let time = DateFormatter()
+        time.dateFormat = "HH:mm"
+        for entry in missed.recent {
+            let sentence = entry.sentence.isEmpty ? entry.session : entry.sentence
+            let short = sentence.count > Self.missedLength ? String(sentence.prefix(Self.missedLength)) + "…" : sentence
+            let line = NSMenuItem(title: "\(time.string(from: entry.date))  \(short)", action: nil, keyEquivalent: "")
+            line.isEnabled = false
+            line.toolTip = sentence
+            line.indentationLevel = 1
+            menu.addItem(line)
+        }
+    }
+
+    private static let missedLength = 60
+
+    private func stateTitle(manual: Bool) -> String {
+        if manual { return "Claude voice: muted" }
+        if let app = calls.callApp { return "Claude voice: muted, in a call (\(app))" }
+        return "Claude voice: on"
+    }
+
     // MARK: - State
 
     private func setMuted(_ muted: Bool) {
@@ -229,16 +280,46 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Draws the icon from the current state: muted by hand or by a call, a flash in progress, a missed session.
     private func refresh() {
-        let muted = MuteState.isMuted
-        guard muted != shownMuted else { return }
-        shownMuted = muted
-        statusItem?.button?.image = Self.menuBarIcon(muted: muted)
-        statusItem?.button?.appearsDisabled = muted
-        statusItem?.button?.toolTip = muted
-            ? "Claude voice: muted. Double-click to unmute."
-            : "Claude voice: on, \(VoiceVolume.percent) %. Click for the volume, double-click to mute."
-        ControlCenter.shared.reloadControls(ofKind: MuteState.controlKind)
+        let manual = MuteState.isMuted
+        let muted = manual || calls.callApp != nil
+        guard let button = statusItem?.button else { return }
+        // The menu bar draws a template image in its own color and ignores contentTintColor (measured: the flash
+        // came out white), so the red half of a flash uses a red, non-template copy of the icon.
+        button.image = missed.isRed ? Self.redIcon(muted: muted) : Self.menuBarIcon(muted: muted)
+        button.appearsDisabled = muted && missed.badge == nil
+        if let session = missed.badge {
+            let color: NSColor = missed.isRed ? .systemRed : .labelColor
+            button.attributedTitle = NSAttributedString(string: " " + session, attributes: [
+                .foregroundColor: color,
+                .font: NSFont.menuBarFont(ofSize: 0),
+            ])
+            button.imagePosition = .imageLeading
+        } else {
+            button.title = ""
+            button.imagePosition = .imageOnly
+        }
+        button.toolTip = tooltip(manual: manual)
+        if manual != shownManualMute {
+            shownManualMute = manual
+            ControlCenter.shared.reloadControls(ofKind: MuteState.controlKind)
+        }
+    }
+
+    private func tooltip(manual: Bool) -> String {
+        var text: String
+        if manual {
+            text = "Claude voice: muted. Double-click to unmute."
+        } else if let app = calls.callApp {
+            text = "Claude voice: muted while \(app) has the microphone."
+        } else {
+            text = "Claude voice: on, \(VoiceVolume.percent) %. Click for the volume, double-click to mute."
+        }
+        if let session = missed.badge {
+            text += "\nNot spoken while muted: \(session). Click to see it."
+        }
+        return text
     }
 
     /// The Claude mark with the speaker's sound waves (muted: struck through), a template image from the asset
@@ -247,6 +328,20 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
         let image = NSImage(named: muted ? "VoiceMuted" : "VoiceOn") ?? NSImage()
         image.isTemplate = true
         image.accessibilityDescription = muted ? "Claude voice muted" : "Claude voice on"
+        return image
+    }
+
+    /// The same icon filled red, drawn as a plain (non-template) image so the menu bar keeps the color.
+    private static func redIcon(muted: Bool) -> NSImage {
+        let source = menuBarIcon(muted: muted)
+        let image = NSImage(size: source.size, flipped: false) { rect in
+            source.draw(in: rect)
+            NSColor.systemRed.set()
+            rect.fill(using: .sourceAtop)
+            return true
+        }
+        image.isTemplate = false
+        image.accessibilityDescription = source.accessibilityDescription
         return image
     }
 
