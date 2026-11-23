@@ -19,6 +19,25 @@ VOLUME_FILE="$CLAUDE_DIR/voice-volume"
 CHIME="${CLAUDE_VOICE_CHIME:-/System/Library/Sounds/Hero.aiff}"
 WAIT_SECONDS="${CLAUDE_VOICE_WAIT:-300}"   # give up if another session holds the voice longer than this
 GAP_SECONDS="${CLAUDE_VOICE_GAP:-0.4}"     # short silence before releasing, so two voices never run together
+STEP_SECONDS="${CLAUDE_VOICE_STEP_LIMIT:-60}"  # longest a single say/afplay may run while holding the lock
+
+# Runs a command, killed after STEP_SECONDS. 2026-11-16: one `say -o` hung for almost 5 hours while holding the
+# shared lock, and every session's sentences timed out behind it, all day. A hang now costs one sentence.
+limited() {
+	if command -v timeout >/dev/null 2>&1; then
+		timeout -k 5 "$STEP_SECONDS" "$@"
+		return
+	fi
+	"$@" &
+	pid=$!
+	( sleep "$STEP_SECONDS"; kill -9 "$pid" 2>/dev/null ) >/dev/null 2>&1 &
+	dog=$!
+	rc=0
+	wait "$pid" || rc=$?
+	kill "$dog" 2>/dev/null || true
+	return "$rc"
+}
+
 
 usage() {
 	echo "usage: voice-say [--chime] [--sync] <sentence>" >&2
@@ -42,12 +61,12 @@ speak_at() {
 	gain="$1"
 	shift
 	if [ "$gain" = 1.00 ]; then
-		say -- "$@"
+		limited say -- "$@" || true
 		return
 	fi
-	tmp_dir="$(mktemp -d "$CLAUDE_DIR/voice-say.XXXXXX")" || { say -- "$@"; return; }
-	if say -o "$tmp_dir/s.aiff" -- "$@"; then
-		afplay -v "$gain" "$tmp_dir/s.aiff" || true
+	tmp_dir="$(mktemp -d "$CLAUDE_DIR/voice-say.XXXXXX")" || { limited say -- "$@" || true; return; }
+	if limited say -o "$tmp_dir/s.aiff" -- "$@"; then
+		limited afplay -v "$gain" "$tmp_dir/s.aiff" || true
 	fi
 	rm -rf "$tmp_dir"
 }
@@ -59,7 +78,7 @@ speak_locked() {
 	shift
 	[ -e "$MUTE_FILE" ] && return 0
 	gain="$(volume_gain)"
-	[ "$chime" = 1 ] && afplay -v "$gain" "$CHIME" 2>/dev/null || true
+	[ "$chime" = 1 ] && limited afplay -v "$gain" "$CHIME" 2>/dev/null || true
 	[ "$#" -gt 0 ] && speak_at "$gain" "$@"
 	sleep "$GAP_SECONDS"
 }
