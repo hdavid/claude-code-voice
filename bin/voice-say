@@ -78,20 +78,57 @@ volume_gain() {
 	printf '%d.%02d\n' $((pct / 100)) $((pct % 100))
 }
 
+INTERRUPTED=3
+
+# Plays a sound (say or afplay) and stops it at once when the user mutes or a call starts: the mute and call files
+# are checked every 0.25 s while it plays (2026-11-24: "it should stop talking as soon as [I] enter a meeting,
+# interrupting the current voice"). Returns INTERRUPTED then. Like limited(), killed after STEP_SECONDS.
+playing() {
+	"$@" &
+	pid=$!
+	ticks=0
+	while kill -0 "$pid" 2>/dev/null; do
+		if silenced; then
+			kill "$pid" 2>/dev/null || true
+			wait "$pid" 2>/dev/null || true
+			return "$INTERRUPTED"
+		fi
+		ticks=$((ticks + 1))
+		if [ "$ticks" -ge $((STEP_SECONDS * 4)) ]; then
+			kill -9 "$pid" 2>/dev/null || true
+			break
+		fi
+		sleep 0.25
+	done
+	wait "$pid" 2>/dev/null || return 1
+}
+
 # `say` has no volume of its own (its [[volm]] command is ignored by the current voices), so below full volume the
-# sentence is rendered to a file and played with afplay at the chosen gain.
+# sentence is rendered to a file and played with afplay at the chosen gain. Returns INTERRUPTED when cut off.
 speak_at() {
 	gain="$1"
 	shift
+	rc=0
 	if [ "$gain" = 1.00 ]; then
-		limited say -- "$@" || true
-		return
+		playing say -- "$@" || rc=$?
+		[ "$rc" = "$INTERRUPTED" ] && return "$INTERRUPTED"
+		return 0
 	fi
-	tmp_dir="$(mktemp -d "$CLAUDE_DIR/voice-say.XXXXXX")" || { limited say -- "$@" || true; return; }
+	tmp_dir="$(mktemp -d "$CLAUDE_DIR/voice-say.XXXXXX")" || {
+		playing say -- "$@" || rc=$?
+		[ "$rc" = "$INTERRUPTED" ] && return "$INTERRUPTED"
+		return 0
+	}
 	if limited say -o "$tmp_dir/s.aiff" -- "$@"; then
-		limited afplay -v "$gain" "$tmp_dir/s.aiff" || true
+		if silenced; then
+			rc="$INTERRUPTED"
+		else
+			playing afplay -v "$gain" "$tmp_dir/s.aiff" || rc=$?
+		fi
 	fi
 	rm -rf "$tmp_dir"
+	[ "$rc" = "$INTERRUPTED" ] && return "$INTERRUPTED"
+	return 0
 }
 
 # Runs while holding the lock. The mute, call and volume files are read here, not earlier: the user may have changed
@@ -104,8 +141,18 @@ speak_locked() {
 		return 0
 	fi
 	gain="$(volume_gain)"
-	[ "$chime" = 1 ] && limited afplay -v "$gain" "$CHIME" 2>/dev/null || true
-	[ "$#" -gt 0 ] && speak_at "$gain" "$@"
+	rc=0
+	if [ "$chime" = 1 ]; then
+		playing afplay -v "$gain" "$CHIME" 2>/dev/null || rc=$?
+	fi
+	if [ "$rc" != "$INTERRUPTED" ] && [ "$#" -gt 0 ]; then
+		speak_at "$gain" "$@" || rc=$?
+	fi
+	# Cut off by a mute or a call: the app shows it as missed, like a sentence that was never started.
+	if [ "$rc" = "$INTERRUPTED" ]; then
+		record_missed "$@"
+		return 0
+	fi
 	sleep "$GAP_SECONDS"
 }
 

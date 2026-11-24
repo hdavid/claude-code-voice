@@ -35,6 +35,12 @@ final class Speaker: NSObject, NSSoundDelegate {
         cue.play()
     }
 
+    /// Cuts the sentence off now (a call started, or the user muted); `say` returns at once.
+    func stop() {
+        sound?.stop()
+        finish()
+    }
+
     nonisolated func sound(_ sound: NSSound, didFinishPlaying flag: Bool) {
         Task { @MainActor in self.finish() }
     }

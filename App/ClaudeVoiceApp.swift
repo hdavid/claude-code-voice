@@ -38,7 +38,11 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         statusItem = item
-        calls.onChange = { [weak self] in self?.refresh() }
+        calls.onChange = { [weak self] in
+            guard let self else { return }
+            if calls.callApp != nil { replies.interrupt() }   // voice-say stops its own sentence (bin/voice-say)
+            refresh()
+        }
         missed.onChange = { [weak self] in self?.refresh() }
         refresh()
         // Immediate: a vnode event on ~/.claude whenever an entry is created or removed there.
@@ -288,7 +292,8 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
         // The menu bar draws a template image in its own color and ignores contentTintColor (measured: the flash
         // came out white), so the red half of a flash uses a red, non-template copy of the icon.
         button.image = missed.isRed ? Self.redIcon(muted: muted) : Self.menuBarIcon(muted: muted)
-        button.appearsDisabled = muted && missed.badge == nil
+        // Never dimmed: a dimmed icon was hard to see (2026-11-24). The struck-through icon says "muted".
+        button.appearsDisabled = false
         if let session = missed.badge {
             let color: NSColor = missed.isRed ? .systemRed : .labelColor
             button.attributedTitle = NSAttributedString(string: " " + session, attributes: [
@@ -323,7 +328,7 @@ final class ClaudeVoiceApp: NSObject, NSApplicationDelegate {
     }
 
     /// The Claude mark with the speaker's sound waves (muted: struck through), a template image from the asset
-    /// catalog shared with the Control Center toggle: the system tints it for light, dark and the dimmed state.
+    /// catalog shared with the Control Center toggle: the system tints it for light and dark.
     private static func menuBarIcon(muted: Bool) -> NSImage {
         let image = NSImage(named: muted ? "VoiceMuted" : "VoiceOn") ?? NSImage()
         image.isTemplate = true

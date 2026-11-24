@@ -30,6 +30,7 @@ voice-say --chime "Backup session: the copy finished."
   toggle flip that file from outside the session.
 - **Calls.** Nothing plays either while a call app (Teams, Slack, Zoom, FaceTime, a browser...) has the microphone:
   the app writes `~/.claude/voice-in-call` then (menu: "Mute during calls"; list in `~/.claude/voice-call-apps`).
+  A sentence already playing is cut off as soon as a call starts or the user mutes.
   A sentence not spoken while muted or in a call makes the menu bar icon flash red with its subject, so start
   every sentence with the session's name.
 - **Chime.** `--chime` plays the Hero sound before the sentence.

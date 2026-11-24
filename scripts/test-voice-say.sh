@@ -12,7 +12,7 @@ trap 'rm -rf "$work"' EXIT INT TERM
 
 mkdir -p "$work/bin" "$work/claude"
 for tool in say afplay; do
-	printf '#!/bin/sh\necho "%s $*" >>"%s/spoken.log"\n' "$tool" "$work" >"$work/bin/$tool"
+	printf '#!/bin/sh\necho "%s $*" >>"%s/spoken.log"\nsleep "${STUB_SECONDS:-0}"\n' "$tool" "$work" >"$work/bin/$tool"
 	chmod +x "$work/bin/$tool"
 done
 # `sleep` under its own name (a symlink: a copied system binary is killed for its signature) stands in for the running app (pgrep may only see the user's processes).
@@ -56,6 +56,29 @@ echo Teams >"$work/claude/voice-in-call"
 check "in a call: silent, recorded" no yes "$running_app" "Bose session: in a call."
 check "stale call file, app not running: speaks" yes no "no-such-app-$$" "Test session: stale."
 rm -f "$work/claude/voice-in-call"
+
+# A call starts while a long sentence plays: it stops within about a second and is recorded as missed.
+interrupted() {   # <name> <file that silences> <its content>
+	name="$1" file="$2"
+	rm -rf "$work/claude/voice-missed" "$work/spoken.log"
+	start=$(date +%s)
+	PATH="$work/bin:$PATH" CLAUDE_VOICE_DIR="$work/claude" CLAUDE_VOICE_APP="$running_app" CLAUDE_VOICE_GAP=0 \
+		STUB_SECONDS=20 "$here/bin/voice-say" --sync "Test session: a long sentence." &
+	speaker=$!
+	sleep 1
+	echo "$3" >"$work/claude/$file"
+	wait "$speaker" || true
+	took=$(($(date +%s) - start))
+	rm -f "$work/claude/$file"
+	if [ "$took" -le 4 ] && ls "$work/claude/voice-missed/"*.txt >/dev/null 2>&1; then
+		echo "ok   $name (${took}s)"
+	else
+		echo "FAIL $name: took ${took}s, missed=$(ls "$work/claude/voice-missed" 2>/dev/null | wc -l)"
+		fails=$((fails + 1))
+	fi
+}
+interrupted "a call starts mid-sentence: cut off" voice-in-call Teams
+interrupted "muted mid-sentence: cut off" voice-muted ""
 
 [ "$fails" -eq 0 ] || { echo "$fails failure(s)"; exit 1; }
 echo "all passed"

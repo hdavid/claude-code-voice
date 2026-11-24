@@ -26,6 +26,11 @@ final class VoiceReplies {
         poll()
     }
 
+    /// A call started or the user muted: stop talking at once. The exchange then ends at its next check.
+    func interrupt() {
+        speaker.stop()
+    }
+
     /// Called on every change in the requests folder (and by the app's slow timer): takes the oldest open request.
     func poll() {
         guard !busy, let request = nextRequest() else { return }
